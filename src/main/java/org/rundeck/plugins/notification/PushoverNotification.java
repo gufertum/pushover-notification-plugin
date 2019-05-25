@@ -50,7 +50,7 @@ public class PushoverNotification implements NotificationPlugin {
 		PushoverClient client = new PushoverRestClient();
 
 		MessagePriority prio = MessagePriority.NORMAL;
-		if(status != null && "failure".equalsIgnoreCase(status.toLowerCase())) {
+		if(trigger != null && "failure".equalsIgnoreCase(trigger.toLowerCase())) {
 			prio = MessagePriority.HIGH;
 		}
 
@@ -86,22 +86,25 @@ public class PushoverNotification implements NotificationPlugin {
 		String notificationMessage = null;
 		switch (trigger) {
 			case "start":
-				notificationMessage = "Job " + job + " has started.";
+				notificationMessage = "Job '" + job + "' has started.";
 				break;
 			case "success":
-				notificationMessage = "Job " + job  + " has finished successfully!";
+				notificationMessage = "Job '" + job  + "' has finished successfully!";
 				break;
 			case "failure":
-				notificationMessage = "Job " + job + " has failed!";
+				notificationMessage = "Job '" + job + "' has failed!";
 				break;
 		}
 		return notificationMessage;
 	}
 
-
 	private String getNotificationMessage(String trigger, String status, String job, String id) {
 		StringBuffer b = new StringBuffer();
-		b.append("Execution #" + id + " " + status + ".");
+		b.append("Execution #" + id + " >> " + status + ".");
+		b.append("---\n");
+		b.append("Trigger = " + trigger + "\n");
+		b.append("Status = " + status + "\n");
+		b.append("Job = " + job);
 		return b.toString();
 	}
 
