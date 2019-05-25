@@ -42,13 +42,11 @@ public class PushoverNotification implements NotificationPlugin {
 		//String jobGroup = ((Map)executionData.get("job")).get("group").toString();
 		//String jobProject = ((Map)executionData.get("job")).get("project").toString();
 
-        //String project = executionData.get("project").toString();
-		String id = executionData.get("id").toString(); //execution id
 		String url = executionData.get("href").toString(); //URL to the execution output view
-		String status = executionData.get("status").toString(); // ‘running’,‘failed’,‘aborted’,‘succeeded’
 
 		PushoverClient client = new PushoverRestClient();
 
+		//set prio to high only if the job really failed
 		MessagePriority prio = MessagePriority.NORMAL;
 		if(trigger != null && "failure".equalsIgnoreCase(trigger.toLowerCase())) {
 			prio = MessagePriority.HIGH;
@@ -57,8 +55,8 @@ public class PushoverNotification implements NotificationPlugin {
         try {
             client.pushMessage(PushoverMessage.builderWithApiToken(appApiToken)
                     .setUserId(userIdToken)
-					.setTitle(getNotificationTitle(trigger, status, jobName))
-                    .setMessage(getNotificationMessage(trigger, status, jobName, id))
+					.setTitle(getNotificationTitle(trigger, jobName))
+                    .setMessage(getNotificationMessage(trigger, jobName, executionData))
 					.setUrl(url)
 					.setPriority(prio)
                     .build());
@@ -74,7 +72,6 @@ public class PushoverNotification implements NotificationPlugin {
         //System.err.printf("Project was: %s\n", projectString);
 
 		return true;
-
 	}
 
 	private boolean isBlank(String string) {
@@ -82,29 +79,42 @@ public class PushoverNotification implements NotificationPlugin {
 	}
 
 
-	private String getNotificationTitle(String trigger, String status, String job) {
+	private String getNotificationTitle(String trigger, String job) {
 		String notificationMessage = null;
 		switch (trigger) {
-			case "start":
+			case "start": // the Job started
 				notificationMessage = "Job '" + job + "' has started.";
 				break;
-			case "success":
+			case "success": // the Job completed without error
 				notificationMessage = "Job '" + job  + "' has finished successfully!";
 				break;
-			case "failure":
+			case "failure": //  the Job failed or was aborted
 				notificationMessage = "Job '" + job + "' has failed!";
+				break;
+			case "retryablefailure": //  the Job failed but will be retried
+				notificationMessage = "Job '" + job + "' has failed, but will retry.";
+				break;
+			case "onavgduration": // The Execution exceed the average duration of the Job
+				notificationMessage = "Job '" + job + "' exeeded avg duration";
+				break;
+			default: // undefined or new trigger method
+				notificationMessage = "Job '" + job + "' triggered by: " + trigger;
 				break;
 		}
 		return notificationMessage;
 	}
 
-	private String getNotificationMessage(String trigger, String status, String job, String id) {
+	private String getNotificationMessage(String trigger, String job, Map executionData) {
+
+		//String project = executionData.get("project").toString();
+		String id = executionData.get("id").toString(); //execution id
+		String status = executionData.get("status").toString(); // ‘running’,‘failed’,‘aborted’,‘succeeded’
+
 		StringBuffer b = new StringBuffer();
-		b.append("Execution #" + id + " >> " + status + ".");
-		b.append("---\n");
-		b.append("Trigger = " + trigger + "\n");
-		b.append("Status = " + status + "\n");
-		b.append("Job = " + job);
+		b.append("Execution #" + id + " >> " + status).append("\n");
+
+		// TODO build all necessary info frmo the executionData (like in the email)
+
 		return b.toString();
 	}
 
