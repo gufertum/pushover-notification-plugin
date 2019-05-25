@@ -5,6 +5,7 @@ import com.dtolabs.rundeck.core.plugins.configuration.PropertyScope;
 import com.dtolabs.rundeck.plugins.descriptions.PluginDescription;
 import com.dtolabs.rundeck.plugins.descriptions.PluginProperty;
 import com.dtolabs.rundeck.plugins.notification.NotificationPlugin;
+import net.pushover.client.MessagePriority.*;
 import net.pushover.client.*;
 import java.util.*;
 
@@ -35,15 +36,31 @@ public class PushoverNotification implements NotificationPlugin {
 			throw new IllegalStateException("appApiToken and userIdToken must be set");
 		}
 
-        String jobString = ((Map)executionData.get("job")).get("name").toString();
-        String projectString = executionData.get("project").toString();
+		//https://docs.rundeck.com/docs/developer/notification-plugin.html#execution-data
+
+        String jobName = ((Map)executionData.get("job")).get("name").toString();
+		//String jobGroup = ((Map)executionData.get("job")).get("group").toString();
+		//String jobProject = ((Map)executionData.get("job")).get("project").toString();
+
+        //String project = executionData.get("project").toString();
+		String id = executionData.get("id").toString(); //execution id
+		String url = executionData.get("href").toString(); //URL to the execution output view
+		String status = executionData.get("status").toString(); // ‘running’,‘failed’,‘aborted’,‘succeeded’
 
 		PushoverClient client = new PushoverRestClient();
+
+		MessagePriority prio = MessagePriority.NORMAL;
+		if(status != null && "failure".equalsIgnoreCase(status.toLowerCase())) {
+			prio = MessagePriority.HIGH;
+		}
 
         try {
             client.pushMessage(PushoverMessage.builderWithApiToken(appApiToken)
                     .setUserId(userIdToken)
-                    .setMessage(getNotificationMessage(trigger, jobString, projectString))
+					.setTitle(getNotificationTitle(trigger, status, jobName))
+                    .setMessage(getNotificationMessage(trigger, status, jobName, id))
+					.setUrl(url)
+					.setPriority(prio)
                     .build());
         } catch (PushoverException e) {
                     e.printStackTrace();
@@ -63,21 +80,29 @@ public class PushoverNotification implements NotificationPlugin {
 	private boolean isBlank(String string) {
 		return null == string || "".equals(string);
 	}
-	
-	private String getNotificationMessage(String trigger, String job, String project) {
+
+
+	private String getNotificationTitle(String trigger, String status, String job) {
 		String notificationMessage = null;
-				switch (trigger) {
+		switch (trigger) {
 			case "start":
-				notificationMessage = "Rundeck job " + job + " for project " + project + " has begun";
+				notificationMessage = "Job " + job + " has started.";
 				break;
 			case "success":
-				notificationMessage = "Rundeck job " + job + " for project " + project + " has finished successfully";
+				notificationMessage = "Job " + job  + " has finished successfully!";
 				break;
 			case "failure":
-				notificationMessage = "Rundeck job " + job + " for project " + project + " has failed";
+				notificationMessage = "Job " + job + " has failed!";
 				break;
 		}
 		return notificationMessage;
+	}
+
+
+	private String getNotificationMessage(String trigger, String status, String job, String id) {
+		StringBuffer b = new StringBuffer();
+		b.append("Execution #" + id + " " + status + ".");
+		return b.toString();
 	}
 
 }
