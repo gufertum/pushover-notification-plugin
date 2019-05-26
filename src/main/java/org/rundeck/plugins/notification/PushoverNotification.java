@@ -38,10 +38,6 @@ public class PushoverNotification implements NotificationPlugin {
 
 		//https://docs.rundeck.com/docs/developer/notification-plugin.html#execution-data
 
-        String jobName = ((Map)executionData.get("job")).get("name").toString();
-		//String jobGroup = ((Map)executionData.get("job")).get("group").toString();
-		//String jobProject = ((Map)executionData.get("job")).get("project").toString();
-
 		String url = executionData.get("href").toString(); //URL to the execution output view
 
 		PushoverClient client = new PushoverRestClient();
@@ -55,8 +51,8 @@ public class PushoverNotification implements NotificationPlugin {
         try {
             client.pushMessage(PushoverMessage.builderWithApiToken(appApiToken)
                     .setUserId(userIdToken)
-					.setTitle(getNotificationTitle(trigger, jobName))
-                    .setMessage(getNotificationMessage(trigger, jobName, executionData))
+					.setTitle(getNotificationTitle(trigger, executionData))
+                    .setMessage(getNotificationMessage(trigger, executionData))
 					.setUrl(url)
 					.setPriority(prio)
                     .build());
@@ -79,7 +75,10 @@ public class PushoverNotification implements NotificationPlugin {
 	}
 
 
-	private String getNotificationTitle(String trigger, String job) {
+	private String getNotificationTitle(String trigger, Map executionData) {
+
+		String job = ((Map)executionData.get("job")).get("name").toString();
+
 		String notificationMessage = null;
 		switch (trigger) {
 			case "start": // the Job started
@@ -104,18 +103,81 @@ public class PushoverNotification implements NotificationPlugin {
 		return notificationMessage;
 	}
 
-	private String getNotificationMessage(String trigger, String job, Map executionData) {
+	private String getNotificationMessage(String trigger, Map executionData) {
+		Object job = executionData.get("job");
 
-		//String project = executionData.get("project").toString();
-		String id = executionData.get("id").toString(); //execution id
-		String status = executionData.get("status").toString(); // ‘running’,‘failed’,‘aborted’,‘succeeded’
+		Map jobdata = (Map) job;
 
-		StringBuffer b = new StringBuffer();
-		b.append("Execution #" + id + " >> " + status).append("\n");
+		Date date = (trigger.equals("running") ? (Date)executionData.get("dateStarted") : (Date)executionData.get("dateEnded"));
 
-		// TODO build all necessary info frmo the executionData (like in the email)
+		StringBuilder sb = new StringBuilder();
 
-		return b.toString();
+		String status = (String)executionData.get("status");
+
+		sb.append("Job [").append(trigger.toUpperCase()).append("]");
+		sb.append(" #"+executionData.get("id")).append(" ").append(status).append("\n");
+
+		sb.append("   started by ").append(executionData.get("user")).append("\n");
+
+		if ("aborted".equalsIgnoreCase("status") && executionData.get("abortedby") != null) {
+			sb.append("    aborted by ").append(executionData.get("abortedby")).append("\n");
+		}
+		if (date != null) {
+			sb.append("    at ").append(date).append("\n");
+		}
+
+		//display description if set
+		String jobdesc = (String)jobdata.get("description");
+		if (!isBlank(jobdesc)) {
+			sb.append("Description: ").append(jobdesc).append("\n");
+		}
+
+		//build job breadcrumb
+		String project = (String)jobdata.get("project");
+		String jobgroup = (String)jobdata.get("group");
+		String jobname = (String)jobdata.get("name");
+
+		sb.append("Breadcrumb: ").append(project);
+		if (!isBlank(jobgroup)) {
+			sb.append(" > ").append(jobgroup);
+		}
+		if (!isBlank(jobname)) {
+			sb.append(" > ").append(jobname);
+		}
+		sb.append("\n");
+
+		Map context = (Map) executionData.get("context");
+
+		Map options = (Map) context.get("option");
+		Map secureOption = (Map) context.get("secureOption");
+		if (null != options && options.size() > 0) {
+			sb.append("User Options\n");
+			for (Object o : options.entrySet()) {
+				Map.Entry entry = (Map.Entry) o;
+				if (secureOption == null || !secureOption.containsKey(entry.getKey())) {
+					sb.append("- ").append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
+				}
+			}
+		}
+		Map nodestatus = (Map)executionData.get("nodestatus");
+		if (nodestatus != null) {
+			sb.append("\n");
+			sb.append("Nodes status [ ");
+			sb.append("failed=").append(nodestatus.get("failed"));
+			sb.append(" succeeded=").append(nodestatus.get("succeeded"));
+			sb.append(" total=").append(nodestatus.get("total")).append(" ]\n");
+		}
+
+		String nodesFailed = (String)executionData.get("failedNodeListString");
+		if (nodesFailed != null) {
+			sb.append("Nodes failed: ").append(nodesFailed).append("\n");
+		}
+
+		String nodesSucceeded = (String)executionData.get("succeededNodeListString");
+		if (nodesSucceeded != null) {
+			sb.append("Nodes succeeded: ").append(nodesSucceeded).append("\n");
+		}
+
+		return sb.toString();
 	}
-
 }
